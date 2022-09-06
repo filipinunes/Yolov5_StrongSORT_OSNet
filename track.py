@@ -25,6 +25,8 @@ if str(ROOT / 'yolov5') not in sys.path:
 if str(ROOT / 'strong_sort') not in sys.path:
     sys.path.append(str(ROOT / 'strong_sort'))  # add strong_sort ROOT to PATH
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
+count = 0
+data = []
 
 import logging
 from yolov5.models.common import DetectMultiBackend
@@ -188,6 +190,7 @@ def run(
             imc = im0.copy() if save_crop else im0  # for save_crop
 
             annotator = Annotator(im0, line_width=2, pil=not ascii)
+            w, h = im0.shape[1], im0.shape[0]
             if cfg.STRONGSORT.ECC:  # camera motion compensation
                 strongsort_list[i].tracker.camera_update(prev_frames[i], curr_frames[i])
 
@@ -217,6 +220,8 @@ def run(
                         bboxes = output[0:4]
                         id = output[4]
                         cls = output[5]
+                        #count
+                        count_obj(bboxes,w,h,id)
 
                         if save_txt:
                             # to MOT format
@@ -243,13 +248,23 @@ def run(
 
             else:
                 strongsort_list[i].increment_ages()
-                LOGGER.info('No detections')
+                #LOGGER.info('No detections')
 
             # Stream results
             im0 = annotator.result()
             if show_vid:
+                global count
+                start_point = (int(w / 2), 0)
+                end_point = (int(w / 2), w)
+                cv2.line(im0, start_point, end_point, color=(0,255,0), thickness=2)
+                thickness = 3
+                org= (150, 150)
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                fontScale = 3
+                color = (0, 255, 0)
+                cv2.putText(im0, str(count), org, font, fontScale, color, thickness, cv2.LINE_AA)
                 cv2.imshow(str(p), im0)
-                cv2.waitKey(1)  # 1 millisecond
+                cv2.waitKey(1) # 1 millisecond
 
             # Save results (image with detections)
             if save_vid:
@@ -281,16 +296,16 @@ def run(
 
 def parse_opt():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--yolo-weights', nargs='+', type=Path, default=WEIGHTS / 'yolov5m.pt', help='model.pt path(s)')
+    parser.add_argument('--yolo-weights', nargs='+', type=Path, default=WEIGHTS / 'yolov5n.pt', help='model.pt path(s)')
     parser.add_argument('--strong-sort-weights', type=Path, default=WEIGHTS / 'osnet_x0_25_msmt17.pt')
     parser.add_argument('--config-strongsort', type=str, default='strong_sort/configs/strong_sort.yaml')
     parser.add_argument('--source', type=str, default='0', help='file/dir/URL/glob, 0 for webcam')  
-    parser.add_argument('--imgsz', '--img', '--img-size', nargs='+', type=int, default=[640], help='inference size h,w')
+    parser.add_argument('--imgsz', '--img', '--img-size', nargs='+', type=int, default=[480], help='inference size h,w')
     parser.add_argument('--conf-thres', type=float, default=0.5, help='confidence threshold')
     parser.add_argument('--iou-thres', type=float, default=0.5, help='NMS IoU threshold')
     parser.add_argument('--max-det', type=int, default=1000, help='maximum detections per image')
     parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
-    parser.add_argument('--show-vid', action='store_true', help='display tracking video results')
+    parser.add_argument('--show-vid', action='store_false', help='display tracking video results')
     parser.add_argument('--save-txt', action='store_true', help='save results to *.txt')
     parser.add_argument('--save-conf', action='store_true', help='save confidences in --save-txt labels')
     parser.add_argument('--save-crop', action='store_true', help='save cropped prediction boxes')
@@ -322,6 +337,15 @@ def main(opt):
     check_requirements(requirements=ROOT / 'requirements.txt', exclude=('tensorboard', 'thop'))
     run(**vars(opt))
 
+
+def count_obj(box,w,h,id):
+    print(int(box[0]+(box[2]-box[0])/2))
+    global count, data
+    if(int(box[0]+(box[2]-box[0])/2) > (int(w / 2))):
+        if id not in data:
+            count += 1
+            data.append(id)
+    
 
 if __name__ == "__main__":
     opt = parse_opt()
